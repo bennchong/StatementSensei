@@ -9,6 +9,7 @@ from monopoly.pipeline import Pipeline
 from monopoly.statements.base import SafetyCheckError
 from pydantic import SecretStr
 
+from webapp.categorization import DEFAULT_CATEGORY, categorize_transactions
 from webapp.models import ProcessedFile, TransactionMetadata
 
 
@@ -60,8 +61,10 @@ def parse_bank_statement(document: PdfDocument, password: str | None = None) -> 
     if bank_name == "GenericBank":
         st.warning("Unrecognized bank - using generic parser", icon="⚠️")
 
-    metadata = TransactionMetadata(bank_name)
-    return ProcessedFile(pipeline.transform(statement), metadata)
+    transactions = pipeline.transform(statement)
+    categorization = categorize_transactions(transactions)
+    metadata = TransactionMetadata(bank_name, categorizer=categorization.categorizer)
+    return ProcessedFile(transactions, metadata, categories=categorization.categories)
 
 
 def create_df(processed_files: list[ProcessedFile]) -> pd.DataFrame:
@@ -72,6 +75,12 @@ def create_df(processed_files: list[ProcessedFile]) -> pd.DataFrame:
         df["bank"] = file.metadata.bank_name
 
         df = df.drop(columns="polarity")
+        if file.categories is None:
+            df["category"] = DEFAULT_CATEGORY
+        elif len(file.categories) == len(df):
+            df["category"] = file.categories
+        else:
+            df["category"] = [DEFAULT_CATEGORY for _ in range(len(df))]
         dataframes.append(df)
 
     concat_df = pd.concat(dataframes)
@@ -80,7 +89,7 @@ def create_df(processed_files: list[ProcessedFile]) -> pd.DataFrame:
 
 
 def show_df(df: pd.DataFrame) -> None:
-    desired_order = ["date", "description", "amount", "bank"]
+    desired_order = ["date", "description", "amount", "bank", "category"]
     columns_to_use = [col for col in desired_order if col in df.columns]
     df = df[columns_to_use]
     df.columns = [col.title() for col in df.columns]

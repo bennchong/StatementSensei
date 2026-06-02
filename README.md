@@ -116,3 +116,13 @@ echo 'PDF_PASSWORDS=["foo"]' > .env
 # Features
 - Supports uploading multiple bank statements
 - Allows unlocking of PDFs using user-provided credentials via the frontend
+
+# Categorization
+Statement Sensei supports a pluggable post-processing categorization step.
+
+Select a categorizer with the `STATEMENTSENSEI_CATEGORIZER` environment variable:
+- `noop` (default): assigns every transaction to `Uncategorized`
+- `rules`: simple keyword-based categorization
+
+To add a new categorizer, implement a `TransactionCategorizer` in
+`webapp/categorization.py` and register it with `register_categorizer`.
