@@ -88,9 +88,9 @@ class RuleBasedCategorizer:
         for transaction in transactions:
             description = (transaction.description or "").lower()
             category = DEFAULT_CATEGORY
-            for candidate, keywords in self.rules.items():
+            for category_name, keywords in self.rules.items():
                 if any(keyword in description for keyword in keywords):
-                    category = candidate
+                    category = category_name
                     break
             categories.append(category)
         return categories

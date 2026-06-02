@@ -80,6 +80,10 @@ def create_df(processed_files: list[ProcessedFile]) -> pd.DataFrame:
         elif len(file.categories) == len(df):
             df["category"] = file.categories
         else:
+            st.warning(
+                "Categorization mismatch detected. Defaulting missing categories to Uncategorized.",
+                icon="⚠️",
+            )
             df["category"] = [DEFAULT_CATEGORY for _ in range(len(df))]
         dataframes.append(df)
 
