@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 import os
-from typing import Protocol, Sequence
+from typing import Protocol
 
 DEFAULT_CATEGORY = "Uncategorized"
 DEFAULT_CATEGORIZER_NAME = "noop"

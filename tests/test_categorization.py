@@ -5,7 +5,9 @@ from webapp.categorization import (
     DEFAULT_CATEGORY,
     DEFAULT_CATEGORIZER_NAME,
     categorize_transactions,
+    get_categorizer,
     get_selected_categorizer,
+    register_categorizer,
 )
 
 
@@ -13,6 +15,20 @@ from webapp.categorization import (
 class FakeTransaction:
     description: str
     amount: float
+
+
+@dataclass(frozen=True)
+class FakeCategorizer:
+    name: str = "test-categorizer"
+
+    def categorize(self, transactions):
+        return [f"Category {idx}" for idx, _ in enumerate(transactions)]
+
+
+def test_register_and_get_categorizer():
+    custom = FakeCategorizer()
+    register_categorizer(custom)
+    assert get_categorizer(custom.name) is custom
 
 
 def test_get_selected_categorizer_falls_back(monkeypatch):
