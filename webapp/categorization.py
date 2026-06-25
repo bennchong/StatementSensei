@@ -3,14 +3,11 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
+from categorizer.constants import DEFAULT_RULES, DEFAULT_CATEGORIZER_NAME, DEFAULT_CATEGORY, CATEGORIZER_ENV_VAR
+from categorizer.googleai import GeminiCategorizer
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-
-DEFAULT_CATEGORY = "Uncategorized"
-DEFAULT_CATEGORIZER_NAME = "noop"
-CATEGORIZER_ENV_VAR = "STATEMENTSENSEI_CATEGORIZER"
-
 
 class TransactionLike(Protocol):
     description: str
@@ -68,16 +65,6 @@ class NoOpCategorizer:
     def categorize(self, transactions: Sequence[TransactionLike]) -> list[str]:
         return [DEFAULT_CATEGORY for _ in transactions]
 
-
-DEFAULT_RULES: dict[str, tuple[str, ...]] = {
-    "Groceries": ("grocery", "supermarket", "whole foods", "trader joe"),
-    "Dining": ("restaurant", "cafe", "coffee", "diner", "breakfast", "lunch", "dinner"),
-    "Transport": ("uber", "lyft", "taxi", "train", "bus", "transit"),
-    "Utilities": ("utility", "electric", "water", "gas", "internet"),
-    "Shopping": ("amazon", "walmart", "target", "shop"),
-}
-
-
 @dataclass(frozen=True)
 class RuleBasedCategorizer:
     name: str = "rules"
@@ -102,3 +89,4 @@ class RuleBasedCategorizer:
 
 register_categorizer(NoOpCategorizer())
 register_categorizer(RuleBasedCategorizer())
+register_categorizer(GeminiCategorizer())
