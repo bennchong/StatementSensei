@@ -62,7 +62,7 @@ def parse_bank_statement(document: PdfDocument, password: str | None = None) -> 
         st.warning("Unrecognized bank - using generic parser", icon="⚠️")
 
     transactions = pipeline.transform(statement)
-    categorization = categorize_transactions(transactions)
+    categorization = categorize_transactions(transactions, 'rules')
     metadata = TransactionMetadata(bank_name, categorizer=categorization.categorizer)
     return ProcessedFile(transactions, metadata, categories=categorization.categories)
 
