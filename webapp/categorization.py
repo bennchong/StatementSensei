@@ -71,8 +71,8 @@ class NoOpCategorizer:
 
 DEFAULT_RULES: dict[str, tuple[str, ...]] = {
     "Groceries": ("grocery", "supermarket", "whole foods", "trader joe"),
-    "Dining": ("restaurant", "cafe", "coffee", "diner"),
-    "Transport": ("uber", "lyft", "taxi", "train", "bus"),
+    "Dining": ("restaurant", "cafe", "coffee", "diner", "breakfast", "lunch", "dinner"),
+    "Transport": ("uber", "lyft", "taxi", "train", "bus", "transit"),
     "Utilities": ("utility", "electric", "water", "gas", "internet"),
     "Shopping": ("amazon", "walmart", "target", "shop"),
 }
@@ -90,6 +90,7 @@ class RuleBasedCategorizer:
         categories: list[str] = []
         for transaction in transactions:
             description = (transaction.description or "").lower()
+            print(description)
             category = DEFAULT_CATEGORY
             for category_name, keywords in self.rules.items():
                 if any(keyword in description for keyword in keywords):
