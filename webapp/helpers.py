@@ -99,7 +99,7 @@ def show_df(df: pd.DataFrame) -> None:
     df.columns = [col.title() for col in df.columns]
     st.dataframe(
         df.style.format({"Amount": "{:,.2f}"}),
-        use_container_width=True,
+        width='stretch',
         hide_index=True,
     )
     total_balance = df["Amount"].sum()

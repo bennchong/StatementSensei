@@ -70,7 +70,7 @@ def show_stacked_bar_chart(df: pd.DataFrame):
     )
 
     fig = go.Figure(data=[income_trace, expenses_trace, savings_trace], layout=layout)
-    chart = st.plotly_chart(fig, use_container_width=True)
+    chart = st.plotly_chart(fig, width='stretch')
 
     total_income = round(df["Income"].sum())
     total_expenses = round(df["Expenses"].sum())
