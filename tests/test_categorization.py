@@ -14,6 +14,7 @@ from webapp.categorization import (
     get_selected_categorizer,
     register_categorizer,
 )
+from webapp.categorizer.googleai import GeminiCategorizer
 
 
 @dataclass
@@ -309,4 +310,98 @@ def test_lm_studio_rejects_response_with_null_choices(monkeypatch):
                 lm_studio_url="http://localhost:1234/v1",
                 lm_studio_model="local-model",
             ),
+        )
+
+
+def test_gemini_categorizes_transactions_individually_with_google_search(monkeypatch):
+    requests = []
+
+    class FakeGoogleSearch:
+        pass
+
+    class FakeTool:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class FakeGenerateContentConfig:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class FakeModels:
+        def generate_content(self, **kwargs):
+            requests.append(kwargs)
+            return SimpleNamespace(text='["Dining"]')
+
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "google.genai",
+        SimpleNamespace(
+            types=SimpleNamespace(
+                GenerateContentConfig=FakeGenerateContentConfig,
+                Tool=FakeTool,
+                GoogleSearch=FakeGoogleSearch,
+            )
+        ),
+    )
+
+    monkeypatch.setattr(
+        GeminiCategorizer,
+        "_get_client",
+        lambda self: SimpleNamespace(models=FakeModels()),
+    )
+    categorizer = GeminiCategorizer(api_key="test-api-key")
+
+    result = categorizer.categorize(
+        [
+            FakeTransaction(description="Coffee Shop", amount=-4),
+            FakeTransaction(description="Book Store", amount=-20),
+        ]
+    )
+
+    assert result == ["Dining", "Dining"]
+    assert len(requests) == 2
+    assert "Coffee Shop" in requests[0]["contents"]
+    assert "Book Store" not in requests[0]["contents"]
+    assert "Book Store" in requests[1]["contents"]
+    assert "Coffee Shop" not in requests[1]["contents"]
+    assert "Google Search" in requests[0]["contents"]
+    assert requests[0]["config"].kwargs["tools"][0].kwargs["google_search"].__class__ is FakeGoogleSearch
+
+
+def test_gemini_reports_a_response_without_candidates(monkeypatch):
+    class FakeGoogleSearch:
+        pass
+
+    class FakeTool:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class FakeGenerateContentConfig:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class FakeModels:
+        def generate_content(self, **kwargs):
+            return SimpleNamespace(text=None, prompt_feedback=None, model_status=None)
+
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "google.genai",
+        SimpleNamespace(
+            types=SimpleNamespace(
+                GenerateContentConfig=FakeGenerateContentConfig,
+                Tool=FakeTool,
+                GoogleSearch=FakeGoogleSearch,
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        GeminiCategorizer,
+        "_get_client",
+        lambda self: SimpleNamespace(models=FakeModels()),
+    )
+
+    with pytest.raises(ValueError, match="no category candidates or text"):
+        GeminiCategorizer(api_key="test-api-key").categorize(
+            [FakeTransaction(description="Coffee Shop", amount=-4)]
         )

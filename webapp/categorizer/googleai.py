@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from webapp.categorization import TransactionLike
+
 # ...existing code...
 
 PREDEFINED_CATEGORIES = list(DEFAULT_RULES.keys()) + [DEFAULT_CATEGORY]
@@ -18,7 +20,7 @@ PREDEFINED_CATEGORIES = list(DEFAULT_RULES.keys()) + [DEFAULT_CATEGORY]
 @dataclass(frozen=True)
 class GeminiCategorizer:
     name: str = "gemini"
-    model: str = "gemini-2.0-flash"
+    model: str = "gemini-3.6-flash"
     api_key: str | None = None
 
     def _get_client(self):
@@ -26,7 +28,7 @@ class GeminiCategorizer:
             from google import genai
         except ImportError as e:
             raise ImportError(
-                "google-genai package is required for GeminiCategorizer. "
+                "google-     package is required for GeminiCategorizer. "
                 "Install it with: pip install google-genai"
             ) from e
 
@@ -40,38 +42,48 @@ class GeminiCategorizer:
             return []
 
         client = self._get_client()
-
-        descriptions = [t.description or "" for t in transactions]
-        numbered = "\n".join(f"{i + 1}. {desc}" for i, desc in enumerate(descriptions))
         categories_list = ", ".join(f'"{c}"' for c in PREDEFINED_CATEGORIES)
-
-        prompt = f"""You are a financial transaction categorizer.
-Categorize each of the following transaction descriptions into exactly one of these categories: {categories_list}.
-
-Transactions:
-{numbered}
-
-Respond with a JSON array of strings, one category per transaction, in the same order.
-Example response format: ["Groceries", "Dining", "Uncategorized"]
-Only respond with the JSON array, no other text."""
-
         from google.genai import types
 
-        response = client.models.generate_content(
-            model=self.model,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-            ),
-        )
+        categories = []
+        for transaction in transactions:
+            description = transaction.description or ""
+            prompt = f"""You are a financial transaction categorizer.
+Categorize this transaction into exactly one of these categories: {categories_list}.
 
-        result = json.loads(response.text)
+Transaction:
+1. {description}
 
-        if not isinstance(result, list) or len(result) != len(transactions):
-            raise ValueError(
-                f"Gemini returned {len(result)} categories for {len(transactions)} transactions"
+Use Google Search to identify the merchant before returning "{DEFAULT_CATEGORY}".
+Respond with a JSON array containing exactly one category.
+Only respond with the JSON array, no other text."""
+
+            response = client.models.generate_content(
+                model=self.model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction="You are a helpful assistant. You must output your final response strictly as a valid JSON object. Do not include markdown code blocks like ```json.",
+                    tools=[types.Tool(google_search=types.GoogleSearch())],
+                ),
             )
 
-        if not all(isinstance(category, str) and category in PREDEFINED_CATEGORIES for category in result):
-            raise ValueError("Gemini returned one or more unsupported categories")
-        return result
+            response_text = response.text
+            if not response_text:
+                details = response.prompt_feedback or response.model_status or "no feedback provided"
+                raise ValueError(
+                    "Gemini returned no category candidates or text "
+                    f"(details: {details})"
+                )
+            result = json.loads(response_text)
+
+            if not isinstance(result, list) or len(result) != 1:
+                raise ValueError(f"Gemini returned {len(result)} categories for 1 transaction")
+
+            if not all(
+                isinstance(category, str) and category in PREDEFINED_CATEGORIES
+                for category in result
+            ):
+                raise ValueError("Gemini returned one or more unsupported categories")
+            categories.extend(result)
+        print(categories)
+        return categories
