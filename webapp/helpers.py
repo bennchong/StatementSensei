@@ -9,6 +9,7 @@ from monopoly.pipeline import Pipeline
 from monopoly.statements.base import SafetyCheckError
 from pydantic import SecretStr
 
+from webapp.categorization import CategorizationError, CategorizerConfiguration, DEFAULT_CATEGORY, categorize_transactions
 from webapp.models import ProcessedFile, TransactionMetadata
 
 
@@ -20,7 +21,11 @@ def build_pipeline(document: PdfDocument, password: str | None = None) -> tuple[
     return pipeline, parser
 
 
-def parse_bank_statement(document: PdfDocument, password: str | None = None) -> ProcessedFile:
+def parse_bank_statement(
+    document: PdfDocument,
+    configuration: CategorizerConfiguration,
+    password: str | None = None,
+) -> ProcessedFile:
     try:
         pipeline, parser = build_pipeline(document, password)
     except MissingOCRError:
@@ -60,8 +65,15 @@ def parse_bank_statement(document: PdfDocument, password: str | None = None) -> 
     if bank_name == "GenericBank":
         st.warning("Unrecognized bank - using generic parser", icon="⚠️")
 
-    metadata = TransactionMetadata(bank_name)
-    return ProcessedFile(pipeline.transform(statement), metadata)
+    transactions = pipeline.transform(statement)
+    try:
+        categorization = categorize_transactions(transactions, configuration=configuration)
+    except (ImportError, ValueError) as error:
+        raise CategorizationError(
+            f"{configuration.name.title()} categorization failed: {error}"
+        ) from error
+    metadata = TransactionMetadata(bank_name, categorizer=categorization.categorizer)
+    return ProcessedFile(transactions, metadata, categories=categorization.categories)
 
 
 def create_df(processed_files: list[ProcessedFile]) -> pd.DataFrame:
@@ -72,6 +84,16 @@ def create_df(processed_files: list[ProcessedFile]) -> pd.DataFrame:
         df["bank"] = file.metadata.bank_name
 
         df = df.drop(columns="polarity")
+        if file.categories is None:
+            df["category"] = DEFAULT_CATEGORY
+        elif len(file.categories) == len(df):
+            df["category"] = file.categories
+        else:
+            st.warning(
+                "Categorization mismatch detected. Defaulting missing categories to Uncategorized.",
+                icon="⚠️",
+            )
+            df["category"] = [DEFAULT_CATEGORY for _ in range(len(df))]
         dataframes.append(df)
 
     concat_df = pd.concat(dataframes)
@@ -80,13 +102,13 @@ def create_df(processed_files: list[ProcessedFile]) -> pd.DataFrame:
 
 
 def show_df(df: pd.DataFrame) -> None:
-    desired_order = ["date", "description", "amount", "bank"]
+    desired_order = ["date", "description", "amount", "bank", "category"]
     columns_to_use = [col for col in desired_order if col in df.columns]
     df = df[columns_to_use]
     df.columns = [col.title() for col in df.columns]
     st.dataframe(
         df.style.format({"Amount": "{:,.2f}"}),
-        use_container_width=True,
+        width='stretch',
         hide_index=True,
     )
     total_balance = df["Amount"].sum()

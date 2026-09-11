@@ -1,6 +1,7 @@
 APP_DESCRIPTION = """
 ## Convert bank statements to CSV
 Transform your PDF bank statements into easy-to-use CSV files.
+Version 0.2
 """
 
 SUPPORTED_BANKS = """Supported banks:
