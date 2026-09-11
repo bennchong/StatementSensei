@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from .constants import DEFAULT_RULES, DEFAULT_CATEGORY, DEFAULT_CATEGORY
+from .constants import DEFAULT_CATEGORY, DEFAULT_RULES
 
 import json
 import os
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Protocol
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -72,4 +72,6 @@ Only respond with the JSON array, no other text."""
                 f"Gemini returned {len(result)} categories for {len(transactions)} transactions"
             )
 
-        return [c if c in PREDEFINED_CATEGORIES else DEFAULT_CATEGORY for c in result]
+        if not all(isinstance(category, str) and category in PREDEFINED_CATEGORIES for category in result):
+            raise ValueError("Gemini returned one or more unsupported categories")
+        return result

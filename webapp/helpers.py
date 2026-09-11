@@ -9,7 +9,7 @@ from monopoly.pipeline import Pipeline
 from monopoly.statements.base import SafetyCheckError
 from pydantic import SecretStr
 
-from webapp.categorization import DEFAULT_CATEGORY, categorize_transactions
+from webapp.categorization import CategorizationError, CategorizerConfiguration, DEFAULT_CATEGORY, categorize_transactions
 from webapp.models import ProcessedFile, TransactionMetadata
 
 
@@ -21,7 +21,11 @@ def build_pipeline(document: PdfDocument, password: str | None = None) -> tuple[
     return pipeline, parser
 
 
-def parse_bank_statement(document: PdfDocument, password: str | None = None) -> ProcessedFile:
+def parse_bank_statement(
+    document: PdfDocument,
+    configuration: CategorizerConfiguration,
+    password: str | None = None,
+) -> ProcessedFile:
     try:
         pipeline, parser = build_pipeline(document, password)
     except MissingOCRError:
@@ -62,7 +66,12 @@ def parse_bank_statement(document: PdfDocument, password: str | None = None) -> 
         st.warning("Unrecognized bank - using generic parser", icon="⚠️")
 
     transactions = pipeline.transform(statement)
-    categorization = categorize_transactions(transactions, 'rules')
+    try:
+        categorization = categorize_transactions(transactions, configuration=configuration)
+    except (ImportError, ValueError) as error:
+        raise CategorizationError(
+            f"{configuration.name.title()} categorization failed: {error}"
+        ) from error
     metadata = TransactionMetadata(bank_name, categorizer=categorization.categorizer)
     return ProcessedFile(transactions, metadata, categories=categorization.categories)
 

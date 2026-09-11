@@ -4,6 +4,7 @@ DEFAULT_RULES: dict[str, tuple[str, ...]] = {
     "Transport": ("uber", "lyft", "taxi", "train", "bus", "transit"),
     "Utilities": ("utility", "electric", "water", "gas", "internet"),
     "Shopping": ("amazon", "walmart", "target", "shop"),
+    "Services": ("hair", "barber", "salon", "consulting"),
 }
 
 DEFAULT_CATEGORY = "Uncategorized"
